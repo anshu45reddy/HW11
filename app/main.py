@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 import joblib
 import numpy as np
 from typing import List, Dict, Any
@@ -46,17 +46,32 @@ class IrisFeatures(BaseModel):
     features: List[float]
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "features": [5.1, 3.5, 1.4, 0.2]
             }
         }
 
+    @property
+    def feature_count(self):
+        return len(self.features)
+
+    def validate_features(self, feature_names):
+        if self.feature_count != len(feature_names):
+            raise ValidationError(
+                f"Expected {len(feature_names)} features, got {self.feature_count}"
+            )
+        return True
+
 # Output data model
 class IrisPrediction(BaseModel):
     prediction: str
     probability: float
-    model_version: str
+    version: str  # Renamed from model_version to avoid warning
+
+    model_config = {
+        'protected_namespaces': ()
+    }
 
 @app.get("/")
 def read_root():
@@ -87,22 +102,28 @@ def get_features():
 def predict(data: IrisFeatures):
     try:
         # Validate input length
-        if len(data.features) != len(feature_names):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Expected {len(feature_names)} features, got {len(data.features)}"
-            )
+        data.validate_features(feature_names)
 
         # Make prediction
-        features = np.array(data.features).reshape(1, -1)
-        prediction = model.predict(features)[0]
-        probability = max(model.predict_proba(features)[0])
+        try:
+            features = np.array(data.features).reshape(1, -1)
+            prediction = model.predict(features)[0]
+            probability = max(model.predict_proba(features)[0])
+        except (ValueError, TypeError) as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid feature values: {str(e)}"
+            )
 
         return {
             "prediction": metadata["target_names"][prediction],
             "probability": float(probability),
-            "model_version": metadata["version"]
+            "version": metadata["version"]  # Using renamed field
         }
 
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        # Log the error for debugging
+        print(f"Error in predict endpoint: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") 
