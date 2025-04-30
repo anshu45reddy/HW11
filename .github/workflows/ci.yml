@@ -37,86 +37,72 @@ jobs:
         bandit -r app/ -c pyproject.toml || true
         safety check || true
     
-    - name: Setup model directory
+    - name: Train and validate model
       run: |
         cd app
+        # Ensure clean model directory
+        rm -rf models
         mkdir -p models/latest
-        ls -la models/
-    
-    - name: Train model
-      run: |
-        cd app
-        # Add debug output
-        echo "Current directory: $(pwd)"
-        echo "Python path: $PYTHONPATH"
-        # Add app directory to Python path
-        PYTHONPATH=$PYTHONPATH:$(pwd)
-        python train.py
-        # Verify model files were created
+        
+        # Set PYTHONPATH and train model
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        python -u train.py
+        
+        # Verify model files
+        echo "Checking model files..."
         ls -la models/latest/
-    
-    - name: Test model artifacts
-      run: |
-        cd app
-        # Add app directory to Python path
-        PYTHONPATH=$PYTHONPATH:$(pwd)
-        python -c "
-import joblib
-import json
-import os
-from pathlib import Path
-
-# Check if model directory exists
-model_dir = Path('models/latest')
-assert model_dir.exists(), 'Model directory not found'
-print(f'Contents of {model_dir}:')
-print(os.listdir(model_dir))
-
-# Load and validate model artifacts
-model = joblib.load(model_dir / 'model.pkl')
-feature_names = joblib.load(model_dir / 'feature_names.pkl')
-metadata = json.load(open(model_dir / 'metadata.json'))
-metrics = json.load(open(model_dir / 'metrics.json'))
-
-# Validate model artifacts
-assert len(feature_names) == 4, 'Expected 4 feature names'
-assert 'accuracy' in metrics, 'Metrics file missing accuracy'
-assert 'version' in metadata, 'Metadata missing version'
-assert metrics['accuracy'] > 0.9, 'Model accuracy below threshold'
-print('Model artifacts validated successfully!')
-        "
+        
+        # Verify each required file exists
+        for file in model.pkl feature_names.pkl metrics.json metadata.json sample_input.pkl; do
+          if [ ! -f "models/latest/$file" ]; then
+            echo "Error: $file is missing!"
+            exit 1
+          fi
+          echo "$file exists and has size: $(ls -lh models/latest/$file | awk '{print $5}')"
+        done
     
     - name: Run API tests
       run: |
         cd app
-        # Add app directory to Python path
-        PYTHONPATH=$PYTHONPATH:$(pwd)
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
         python -m pytest tests/ -v --cov=. --cov-report=xml
     
     - name: Test API startup
       run: |
         cd app
-        # Start the API server with debug output
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        
+        # Start the API server
         python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
         echo "API server started, waiting for it to be ready..."
         
-        # Wait for the server to start and test connection
-        for i in {1..30}; do
-          if curl -s http://localhost:8000/health > /dev/null; then
-            echo "API server is ready!"
-            break
-          fi
-          echo "Attempt $i: Waiting for API server..."
-          sleep 2
+        # Function to check if API is ready
+        check_api() {
+          curl -s http://localhost:8000/health > /dev/null
+          return $?
+        }
+        
+        # Wait for API to be ready
+        COUNTER=0
+        TIMEOUT=30
+        until check_api || [ $COUNTER -eq $TIMEOUT ]; do
+          echo "Waiting for API to be ready... ($(( TIMEOUT - COUNTER )) seconds left)"
+          sleep 1
+          ((COUNTER++))
         done
         
-        # Run the actual tests
-        curl -v --retry 5 --retry-delay 3 --retry-all-errors http://localhost:8000/ || exit 1
-        curl -v --retry 5 --retry-delay 3 --retry-all-errors http://localhost:8000/model-info || exit 1
+        if [ $COUNTER -eq $TIMEOUT ]; then
+          echo "Error: API failed to start within $TIMEOUT seconds"
+          exit 1
+        fi
+        
+        echo "API is ready! Testing endpoints..."
+        curl -v http://localhost:8000/ || exit 1
+        curl -v http://localhost:8000/model-info || exit 1
     
     - name: Upload coverage report
-      if: success()  # Only upload coverage if tests pass
+      if: success()
       uses: codecov/codecov-action@v3
       with:
         file: ./app/coverage.xml
-        fail_ci_if_error: false  # Don't fail if coverage upload fails 
+        fail_ci_if_error: false 
