@@ -14,15 +14,32 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Load the latest model and feature names
-MODEL_DIR = Path("models/latest")
-if not MODEL_DIR.exists():
-    raise RuntimeError("No trained model found. Please run train.py first.")
+# Initialize model and metadata as None
+model = None
+feature_names = None
+metadata = None
+metrics = None
 
-model = joblib.load(MODEL_DIR / "model.pkl")
-feature_names = joblib.load(MODEL_DIR / "feature_names.pkl")
-metadata = json.load(open(MODEL_DIR / "metadata.json"))
-metrics = json.load(open(MODEL_DIR / "metrics.json"))
+def load_model():
+    """Load model and artifacts"""
+    global model, feature_names, metadata, metrics
+    
+    # Get the directory containing this file
+    current_dir = Path(__file__).parent
+    MODEL_DIR = current_dir / "models/latest"
+    
+    if not MODEL_DIR.exists():
+        # If no model exists, train one
+        import train
+        
+    # Load the model and artifacts
+    model = joblib.load(MODEL_DIR / "model.pkl")
+    feature_names = joblib.load(MODEL_DIR / "feature_names.pkl")
+    metadata = json.load(open(MODEL_DIR / "metadata.json"))
+    metrics = json.load(open(MODEL_DIR / "metrics.json"))
+
+# Load model on startup
+load_model()
 
 # Input data model
 class IrisFeatures(BaseModel):

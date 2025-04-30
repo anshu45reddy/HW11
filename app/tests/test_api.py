@@ -1,11 +1,32 @@
 import pytest
 from fastapi.testclient import TestClient
+import sys
+import os
+from pathlib import Path
+
+# Add the app directory to the Python path
+sys.path.append(str(Path(__file__).parent.parent))
+
 from main import app
 import joblib
 import numpy as np
-from pathlib import Path
 
+# Create test client
 client = TestClient(app)
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_test_data():
+    """Ensure we have model artifacts for testing"""
+    models_dir = Path(__file__).parent.parent / "models"
+    if not models_dir.exists():
+        models_dir.mkdir(exist_ok=True)
+        
+    latest_dir = models_dir / "latest"
+    if not latest_dir.exists():
+        # Train a new model if none exists
+        import train
+        
+    return True
 
 def test_read_root():
     response = client.get("/")
@@ -33,7 +54,7 @@ def test_get_model_info():
 
 def test_predict_valid_input():
     # Load sample input from the model directory
-    model_dir = Path("models/latest")
+    model_dir = Path(__file__).parent.parent / "models/latest"
     sample_input = joblib.load(model_dir / "sample_input.pkl")
     
     response = client.post(
