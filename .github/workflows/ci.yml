@@ -72,33 +72,44 @@ jobs:
         cd app
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         
-        # Start the API server
-        python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
-        echo "API server started, waiting for it to be ready..."
+        # Start the API server in the background with output redirection
+        nohup python -m uvicorn main:app --host 0.0.0.0 --port 8000 > uvicorn.log 2>&1 &
+        SERVER_PID=$!
+        echo "Started API server with PID $SERVER_PID"
         
-        # Function to check if API is ready
-        check_api() {
-          curl -s http://localhost:8000/health > /dev/null
-          return $?
+        # Function to check if server is ready
+        wait_for_server() {
+          local max_attempts=30
+          local attempt=1
+          echo "Waiting for API server to be ready..."
+          while [ $attempt -le $max_attempts ]; do
+            if curl -s http://localhost:8000/health > /dev/null; then
+              echo "API server is ready!"
+              return 0
+            fi
+            echo "Attempt $attempt/$max_attempts: Server not ready yet..."
+            sleep 2
+            attempt=$((attempt + 1))
+          done
+          echo "Server failed to start after $max_attempts attempts"
+          cat uvicorn.log
+          return 1
         }
         
-        # Wait for API to be ready
-        COUNTER=0
-        TIMEOUT=30
-        until check_api || [ $COUNTER -eq $TIMEOUT ]; do
-          echo "Waiting for API to be ready... ($(( TIMEOUT - COUNTER )) seconds left)"
-          sleep 1
-          ((COUNTER++))
-        done
-        
-        if [ $COUNTER -eq $TIMEOUT ]; then
-          echo "Error: API failed to start within $TIMEOUT seconds"
+        # Wait for server to be ready
+        if ! wait_for_server; then
+          echo "Error: Server failed to start properly"
+          kill $SERVER_PID || true
           exit 1
         fi
         
-        echo "API is ready! Testing endpoints..."
+        # Test endpoints
+        echo "Testing API endpoints..."
         curl -v http://localhost:8000/ || exit 1
         curl -v http://localhost:8000/model-info || exit 1
+        
+        # Cleanup
+        kill $SERVER_PID || true
     
     - name: Upload coverage report
       if: success()
