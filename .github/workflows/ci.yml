@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov requests flake8 bandit safety
+    
+    - name: Run linting
+      run: |
+        flake8 app/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 app/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Run security checks
+      run: |
+        bandit -r app/ -c pyproject.toml
+        safety check
+    
+    - name: Train model
+      run: |
+        cd app
+        python train.py
+    
+    - name: Test model artifacts
+      run: |
+        cd app
+        python -c "
+import joblib
+import json
+import os
+from pathlib import Path
+
+# Check if model directory exists
+model_dir = Path('models/latest')
+assert model_dir.exists(), 'Model directory not found'
+
+# Load and validate model artifacts
+model = joblib.load(model_dir / 'model.pkl')
+feature_names = joblib.load(model_dir / 'feature_names.pkl')
+metadata = json.load(open(model_dir / 'metadata.json'))
+metrics = json.load(open(model_dir / 'metrics.json'))
+
+# Validate model artifacts
+assert len(feature_names) == 4, 'Expected 4 feature names'
+assert 'accuracy' in metrics, 'Metrics file missing accuracy'
+assert 'version' in metadata, 'Metadata missing version'
+assert metrics['accuracy'] > 0.9, 'Model accuracy below threshold'
+print('Model artifacts validated successfully!')
+        "
+    
+    - name: Run API tests
+      run: |
+        cd app
+        python -m pytest tests/ -v --cov=. --cov-report=xml
+    
+    - name: Test API startup
+      run: |
+        cd app
+        python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
+        sleep 5
+        curl -f http://localhost:8000/
+        curl -f http://localhost:8000/model-info
+    
+    - name: Upload coverage report
+      uses: codecov/codecov-action@v2
+      with:
+        file: ./app/coverage.xml
+        fail_ci_if_error: true 
