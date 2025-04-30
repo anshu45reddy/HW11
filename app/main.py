@@ -126,4 +126,9 @@ def predict(data: IrisFeatures):
     except Exception as e:
         # Log the error for debugging
         print(f"Error in predict endpoint: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") 
+        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}")
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy"} 

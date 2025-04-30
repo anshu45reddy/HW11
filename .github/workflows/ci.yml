@@ -37,15 +37,29 @@ jobs:
         bandit -r app/ -c pyproject.toml || true
         safety check || true
     
-    - name: Train model
+    - name: Setup model directory
       run: |
         cd app
         mkdir -p models/latest
+        ls -la models/
+    
+    - name: Train model
+      run: |
+        cd app
+        # Add debug output
+        echo "Current directory: $(pwd)"
+        echo "Python path: $PYTHONPATH"
+        # Add app directory to Python path
+        PYTHONPATH=$PYTHONPATH:$(pwd)
         python train.py
+        # Verify model files were created
+        ls -la models/latest/
     
     - name: Test model artifacts
       run: |
         cd app
+        # Add app directory to Python path
+        PYTHONPATH=$PYTHONPATH:$(pwd)
         python -c "
 import joblib
 import json
@@ -55,6 +69,8 @@ from pathlib import Path
 # Check if model directory exists
 model_dir = Path('models/latest')
 assert model_dir.exists(), 'Model directory not found'
+print(f'Contents of {model_dir}:')
+print(os.listdir(model_dir))
 
 # Load and validate model artifacts
 model = joblib.load(model_dir / 'model.pkl')
@@ -73,14 +89,28 @@ print('Model artifacts validated successfully!')
     - name: Run API tests
       run: |
         cd app
+        # Add app directory to Python path
+        PYTHONPATH=$PYTHONPATH:$(pwd)
         python -m pytest tests/ -v --cov=. --cov-report=xml
     
     - name: Test API startup
       run: |
         cd app
-        nohup python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
-        echo "Waiting for API to start..."
-        sleep 15  # Give more time for the server to start
+        # Start the API server with debug output
+        python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
+        echo "API server started, waiting for it to be ready..."
+        
+        # Wait for the server to start and test connection
+        for i in {1..30}; do
+          if curl -s http://localhost:8000/health > /dev/null; then
+            echo "API server is ready!"
+            break
+          fi
+          echo "Attempt $i: Waiting for API server..."
+          sleep 2
+        done
+        
+        # Run the actual tests
         curl -v --retry 5 --retry-delay 3 --retry-all-errors http://localhost:8000/ || exit 1
         curl -v --retry 5 --retry-delay 3 --retry-all-errors http://localhost:8000/model-info || exit 1
     
