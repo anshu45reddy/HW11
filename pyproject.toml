@@ -1,6 +1,7 @@
 [tool.bandit]
+targets = ["app"]
 exclude_dirs = ["tests", "venv"]
-skips = ["B101"]  # Skip assert statements
+skips = ["B101"]
 
 [build-system]
 requires = ["setuptools>=42", "wheel"]
