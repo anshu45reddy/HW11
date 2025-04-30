@@ -11,12 +11,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: '3.8'
+        cache: 'pip'
     
     - name: Install dependencies
       run: |
@@ -39,7 +40,7 @@ jobs:
     - name: Train model
       run: |
         cd app
-        mkdir -p models
+        mkdir -p models/latest
         python train.py
     
     - name: Test model artifacts
@@ -77,14 +78,15 @@ print('Model artifacts validated successfully!')
     - name: Test API startup
       run: |
         cd app
-        timeout 30s python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
-        sleep 10  # Give more time for the server to start
-        curl -f --retry 3 --retry-delay 2 http://localhost:8000/ || exit 1
-        curl -f --retry 3 --retry-delay 2 http://localhost:8000/model-info || exit 1
+        nohup python -m uvicorn main:app --host 0.0.0.0 --port 8000 &
+        echo "Waiting for API to start..."
+        sleep 15  # Give more time for the server to start
+        curl -v --retry 5 --retry-delay 3 --retry-all-errors http://localhost:8000/ || exit 1
+        curl -v --retry 5 --retry-delay 3 --retry-all-errors http://localhost:8000/model-info || exit 1
     
     - name: Upload coverage report
       if: success()  # Only upload coverage if tests pass
-      uses: codecov/codecov-action@v2
+      uses: codecov/codecov-action@v3
       with:
         file: ./app/coverage.xml
         fail_ci_if_error: false  # Don't fail if coverage upload fails 
