@@ -50,7 +50,7 @@ def train_and_save_model():
         # Save model artifacts
         logger.info(f"Saving model artifacts to {model_dir}...")
         joblib.dump(model, model_dir / "model.pkl")
-        joblib.dump(iris.feature_names, model_dir / "feature_names.pkl")
+        joblib.dump(list(iris.feature_names), model_dir / "feature_names.pkl")
 
         # Save evaluation metrics
         metrics = {
@@ -69,8 +69,8 @@ def train_and_save_model():
             "training_date": datetime.now().isoformat(),
             "model_type": "RandomForestClassifier",
             "parameters": model.get_params(),
-            "feature_names": iris.feature_names.tolist(),
-            "target_names": iris.target_names.tolist()
+            "feature_names": list(iris.feature_names),
+            "target_names": list(iris.target_names)
         }
 
         with open(model_dir / "metadata.json", "w") as f:
