@@ -1,7 +1,11 @@
+[tool.pytest.ini_options]
+testpaths = ["app/tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=app --cov-report=xml"
+
 [tool.bandit]
-targets = ["app"]
-exclude_dirs = ["tests", "venv"]
-skips = ["B101"]
+exclude_dirs = ["venv", "tests"]
+tests = ["B201", "B301"]
 
 [build-system]
 requires = ["setuptools>=42", "wheel"]

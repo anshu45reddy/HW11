@@ -1,132 +1,107 @@
 # Iris Classifier MLOps Project
 
-A comprehensive MLOps project that demonstrates model training, versioning, API deployment, and CI/CD pipeline setup.
+A machine learning project that demonstrates MLOps best practices using an Iris flower classifier. The project includes a FastAPI-based REST API, automated model training, and a robust CI/CD pipeline.
+
+## Features
+
+- FastAPI-based REST API for model predictions
+- Automated model training and versioning
+- Comprehensive test suite with pytest
+- GitHub Actions CI/CD pipeline
+- Model performance monitoring
+- Error handling and input validation
 
 ## Project Structure
+
 ```
 mlops/
 ├── app/
-│   ├── train.py        # Model training script
-│   ├── main.py         # FastAPI application
-│   ├── models/         # Model versions directory
-│   │   ├── latest -> YYYYMMDD_HHMMSS/  # Symlink to latest model
-│   │   └── YYYYMMDD_HHMMSS/  # Versioned model directory
-│   │       ├── model.pkl
-│   │       ├── feature_names.pkl
-│   │       ├── sample_input.pkl
-│   │       ├── metrics.json
-│   │       └── metadata.json
-│   └── tests/          # Test directory
-│       └── test_api.py # API test cases
+│   ├── main.py           # FastAPI application
+│   ├── train.py          # Model training script
+│   ├── models/           # Model artifacts directory
+│   │   └── latest/       # Latest model version
+│   └── tests/            # Test files
 ├── .github/
-│   └── workflows/
-│       └── ci.yml      # CI pipeline configuration
-├── pyproject.toml      # Project configuration
-└── requirements.txt    # Project dependencies
+│   └── workflows/        # GitHub Actions workflows
+├── requirements.txt      # Project dependencies
+└── README.md            # Project documentation
 ```
 
-## Setup and Installation
+## Installation
 
 1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd mlops
-   ```
+```bash
+git clone https://github.com/anshu45reddy/HW11.git
+cd HW11/mlops
+```
 
-2. Install dependencies:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: .\venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+2. Create and activate a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-3. Train the model:
-   ```bash
-   cd app
-   python train.py
-   ```
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-4. Start the API:
-   ```bash
-   uvicorn main:app --reload
-   ```
+## Usage
+
+1. Train the model:
+```bash
+cd app
+python train.py
+```
+
+2. Start the API server:
+```bash
+cd app
+uvicorn main:app --reload
+```
+
+3. Access the API documentation at:
+```
+http://localhost:8000/docs
+```
 
 ## API Endpoints
 
-- `GET /`: Welcome message and model info
+- `GET /`: Welcome message and model information
+- `GET /health`: Health check endpoint
 - `GET /model-info`: Detailed model information and metrics
-- `GET /features`: List of feature names
-- `POST /predict`: Make predictions
-  - Input format:
-    ```json
-    {
-        "features": [5.1, 3.5, 1.4, 0.2]
-    }
-    ```
-  - Output format:
-    ```json
-    {
-        "prediction": "setosa",
-        "probability": 0.98,
-        "model_version": "20240315_123456"
-    }
-    ```
+- `GET /features`: List of model features
+- `POST /predict`: Make predictions with the model
 
-## Model Versioning
+### Example Prediction Request
 
-The project implements a simple model versioning system:
-- Each model training run creates a new versioned directory under `models/`
-- The `latest` symlink always points to the most recent model
-- Each model version includes:
-  - Trained model
-  - Feature names
-  - Sample input
-  - Evaluation metrics
-  - Metadata (version, training date, parameters)
+```bash
+curl -X POST "http://localhost:8000/predict" \
+     -H "Content-Type: application/json" \
+     -d '{"features": [5.1, 3.5, 1.4, 0.2]}'
+```
 
 ## Testing
 
-1. Run API tests:
-   ```bash
-   cd app
-   pytest tests/ -v
-   ```
+Run the test suite:
+```bash
+cd app
+python -m pytest tests/ -v
+```
 
-2. Run tests with coverage:
-   ```bash
-   pytest tests/ -v --cov=. --cov-report=html
-   ```
+## CI/CD Pipeline
 
-## CI Pipeline
+The project includes a GitHub Actions workflow that:
+1. Runs linting and security checks
+2. Trains and validates the model
+3. Runs the test suite
+4. Tests the API functionality
+5. Generates test coverage reports
 
-The CI pipeline includes:
-1. Code linting with flake8
-2. Security checks with bandit and safety
-3. Model training and validation
-4. API tests with coverage reporting
-5. API startup test
-6. Coverage report upload to Codecov
+## License
 
-## GitHub Setup
+MIT License
 
-1. Create a new repository on GitHub
+## Author
 
-2. Push your code:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git branch -M main
-   git remote add origin <repository-url>
-   git push -u origin main
-   ```
-
-3. GitHub Actions will automatically run the CI pipeline on push and pull requests
-
-4. Required GitHub Secrets:
-   - None required for basic setup
-   - Add `CODECOV_TOKEN` if using Codecov for coverage reporting
-
-## API Documentation
-
-Access the API documentation at `http://localhost:8000/docs` when running locally. 
+Chandana Rondla 
